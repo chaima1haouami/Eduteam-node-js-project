@@ -65,3 +65,34 @@ export async function sendLoginEmail(user) {
     console.log("Email de démo, aperçu :", nodemailer.getTestMessageUrl(info));
   }
 }
+
+const ROLE_LABELS = {
+  etudiant: "Étudiant",
+  encadrant: "Encadrant",
+  admin: "Administrateur",
+};
+
+export async function sendRoleChangedEmail({ user, oldRole, newRole }) {
+  const { transporter, test } = await getTransporter();
+  const nom = escapeHtml(user.nom);
+  const ancien = ROLE_LABELS[oldRole] || oldRole;
+  const nouveau = ROLE_LABELS[newRole] || newRole;
+
+  const info = await transporter.sendMail({
+    from: process.env.MAIL_FROM || '"Eduteam" <no-reply@eduteam.local>',
+    to: user.email,
+    subject: "Votre rôle sur Eduteam a changé",
+    text: `Bonjour ${user.nom},\n\nVotre rôle est passé de « ${ancien} » à « ${nouveau} ».\n\nDéconnectez-vous puis reconnectez-vous pour voir le changement.\n\nL'équipe Eduteam`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;border-radius:16px;background:#F7F6FF;color:#1B1464">
+        <h2 style="margin:0 0 12px">Bonjour ${nom},</h2>
+        <p>Votre rôle sur <strong>Eduteam</strong> est passé de
+          <strong>${ancien}</strong> à <strong>${nouveau}</strong>.</p>
+        <p style="color:#475569">Déconnectez-vous puis reconnectez-vous pour voir le changement.</p>
+      </div>`,
+  });
+
+  if (test) {
+    console.log("Email de démo, aperçu :", nodemailer.getTestMessageUrl(info));
+  }
+}
