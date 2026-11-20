@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
+import AdminUsers from "./pages/AdminUsers";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:projectId" element={<ProjectDetail />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
         </Route>
       </Route>
 
