@@ -20,6 +20,11 @@ export default function Layout() {
             Eduteam
           </Link>
           <div className="flex items-center gap-4 text-sm">
+            {user?.role === "admin" && (
+              <Link to="/admin/users" className="font-medium hover:underline">
+                Utilisateurs
+              </Link>
+            )}
             <span>
               {user?.nom} <span className="opacity-70">({user?.role})</span>
             </span>
