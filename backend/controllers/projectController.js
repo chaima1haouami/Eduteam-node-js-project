@@ -2,6 +2,7 @@ import Joi from "joi";
 import Project from "../models/Project.js";
 import ProjectMember from "../models/ProjectMember.js";
 import User from "../models/User.js";
+import { Task } from "../models/Task.js";
 
 const projectSchema = Joi.object({
   titre: Joi.string().min(3).required(),
@@ -67,13 +68,25 @@ export const updateProject = async (req, res) => {
   res.json({ project });
 };
 
-// US20 : supprimer un projet (chef)
+// US20 : supprimer un projet et ses données associées
 export const deleteProject = async (req, res) => {
-  await ProjectMember.deleteMany({ project: req.params.projectId });
-  await Project.findByIdAndDelete(req.params.projectId);
-  res.json({ message: "Projet supprimé" });
-};
+  const { projectId } = req.params;
 
+  const project = await Project.findById(projectId);
+
+  if (!project) {
+    return res.status(404).json({ message: "Projet introuvable" });
+  }
+
+  await Promise.all([
+    Task.deleteMany({ project: projectId }),
+    ProjectMember.deleteMany({ project: projectId }),
+  ]);
+
+  await project.deleteOne();
+
+  res.json({ message: "Projet supprimé avec succès" });
+};
 // US07 : inviter un membre par email (chef)
 export const addMember = async (req, res) => {
   const schema = Joi.object({

@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Task from "../models/Task.js";
+import { Task } from "../models/Task.js";
 import ProjectMember from "../models/ProjectMember.js";
 import { getUserId, displayName } from "../middleware/taskAccess.js";
 import { createTaskSchema, updateTaskSchema } from "../validators/taskValidator.js";
