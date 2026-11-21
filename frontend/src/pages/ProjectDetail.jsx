@@ -261,7 +261,7 @@ export default function ProjectDetail() {
 
       <TaskBoard projectId={projectId} members={members} isManager={isChef} />
 
-      <ProjectCalendar projectId={projectId} />
+      <ProjectCalendar projectId={projectId} members={members} isManager={isChef} />
 
       <ProjectFiles projectId={projectId} isManager={isChef} />
     </div>

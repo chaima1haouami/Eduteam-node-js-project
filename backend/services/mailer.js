@@ -119,3 +119,32 @@ export async function sendProjectInviteEmail({ user, project, inviter, role }) {
       <p style="color:#94a3b8;font-size:12px">Ce message est automatique, merci de ne pas y répondre.</p>`),
   });
 }
+
+const PRIORITY_LABELS = { low: "Basse", medium: "Moyenne", high: "Haute" };
+
+export async function sendTaskCreatedEmail({ user, project, task, creator }) {
+  const link = `${process.env.CLIENT_URL || "http://localhost:5173"}/projects/${project._id}`;
+  const par = creator?.nom ? ` par ${creator.nom}` : "";
+  const priorite = PRIORITY_LABELS[task.priority] || task.priority;
+  const echeance = task.dueDate
+    ? new Date(task.dueDate).toLocaleDateString("fr-FR")
+    : "Aucune";
+
+  await deliver({
+    to: user.email,
+    subject: `Nouvelle tâche dans « ${project.titre} » : ${task.title}`,
+    text: `Bonjour ${user.nom},\n\nUne nouvelle tâche a été ajoutée${par} au projet « ${project.titre} ».\n\nTitre : ${task.title}\nPriorité : ${priorite}\nÉchéance : ${echeance}\n\nOuvrir le projet : ${link}\n\nCe message est automatique, merci de ne pas y répondre.\n\nL'équipe Eduteam`,
+    html: box(`
+      <h2 style="margin:0 0 12px">Bonjour ${escapeHtml(user.nom)},</h2>
+      <p>Une nouvelle tâche a été ajoutée${escapeHtml(par)} au projet
+        <strong>${escapeHtml(project.titre)}</strong>.</p>
+      <div style="background:#fff;border-radius:12px;padding:12px 16px;margin:16px 0">
+        <p style="margin:0 0 6px"><strong>${escapeHtml(task.title)}</strong></p>
+        <p style="margin:0;color:#475569;font-size:14px">Priorité : ${escapeHtml(priorite)}<br>Échéance : ${escapeHtml(echeance)}</p>
+      </div>
+      <p style="margin:24px 0">
+        <a href="${link}" style="background:#1B1464;color:#fff;padding:12px 20px;border-radius:12px;text-decoration:none;font-weight:bold">Ouvrir le projet</a>
+      </p>
+      <p style="color:#94a3b8;font-size:12px">Ce message est automatique, merci de ne pas y répondre.</p>`),
+  });
+}

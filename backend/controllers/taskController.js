@@ -1,19 +1,27 @@
 import mongoose from "mongoose";
 import { Task } from "../models/Task.js";
+import Project from "../models/Project.js";
 import ProjectMember from "../models/ProjectMember.js";
+import User from "../models/User.js";
 import { getUserId, displayName } from "../middleware/taskAccess.js";
 import { createTaskSchema, updateTaskSchema } from "../validators/taskValidator.js";
+import {
+  sendTaskCreatedEmail,
+  sendTaskAssignedEmail,
+} from "../services/mailer.js";
 
 // champs possibles du nom, selon votre modèle User
 const USER_FIELDS = "name nom prenom username email";
 
-// Tâche -> objet JSON avec assignee { _id, name, email }
+// Tâche -> objet JSON avec assignee { _id, name, nom, email }
 function serialize(task) {
   const obj = task.toObject();
   if (obj.assignee) {
+    const name = displayName(obj.assignee);
     obj.assignee = {
       _id: obj.assignee._id,
-      name: displayName(obj.assignee),
+      name,
+      nom: name,
       email: obj.assignee.email,
     };
   }
@@ -23,6 +31,47 @@ function serialize(task) {
 async function assigneeIsMember(projectId, assigneeId) {
   if (!assigneeId) return true;
   return !!(await ProjectMember.exists({ project: projectId, user: assigneeId }));
+}
+
+// Email à la création : l'assigné, ou à défaut tous les membres, sauf le créateur
+async function notifyNewTask(task, creatorId, projectId) {
+  const [project, creator] = await Promise.all([
+    Project.findById(projectId).select("titre"),
+    User.findById(creatorId).select("nom"),
+  ]);
+  if (!project) return;
+
+  let recipients;
+  if (task.assignee) {
+    const assigneeId = task.assignee._id || task.assignee;
+    recipients = [await User.findById(assigneeId).select("nom email")];
+  } else {
+    const members = await ProjectMember.find({ project: projectId }).populate(
+      "user",
+      "nom email"
+    );
+    recipients = members.map((m) => m.user);
+  }
+
+  recipients
+    .filter((u) => u && String(u._id) !== String(creatorId))
+    .forEach((u) =>
+      sendTaskCreatedEmail({ user: u, project, task, creator }).catch((err) =>
+        console.error("Email de tâche non envoyé :", err.message)
+      )
+    );
+}
+
+// Email quand une tâche existante est attribuée à quelqu'un
+async function notifyAssigned(task, assigneeId, actorId, projectId) {
+  if (!assigneeId || String(assigneeId) === String(actorId)) return;
+  const [project, actor, user] = await Promise.all([
+    Project.findById(projectId).select("titre"),
+    User.findById(actorId).select("nom"),
+    User.findById(assigneeId).select("nom email"),
+  ]);
+  if (!project || !user) return;
+  await sendTaskAssignedEmail({ user, project, task, assigner: actor });
 }
 
 // Infos pour l'interface : rôle de l'utilisateur + membres assignables
@@ -64,6 +113,12 @@ export async function createTask(req, res) {
     project: req.params.projectId,
     createdBy: getUserId(req),
   });
+
+  // Sans await : un échec d'envoi n'empêche pas la création
+  notifyNewTask(task, getUserId(req), req.params.projectId).catch((err) =>
+    console.error("Notification de tâche échouée :", err.message)
+  );
+
   await task.populate("assignee", USER_FIELDS);
   res.status(201).json(serialize(task));
 }
@@ -109,8 +164,19 @@ export async function updateTask(req, res) {
     return res.status(400).json({ message: "La personne assignée n'est pas membre du projet" });
   }
 
+  const previousAssignee = task.assignee ? String(task.assignee) : null;
+
   Object.assign(task, value);
   await task.save();
+
+  // Email seulement si l'assigné a réellement changé
+  const newAssignee = task.assignee ? String(task.assignee) : null;
+  if (newAssignee && newAssignee !== previousAssignee) {
+    notifyAssigned(task, newAssignee, getUserId(req), projectId).catch((err) =>
+      console.error("Email d'attribution non envoyé :", err.message)
+    );
+  }
+
   await task.populate("assignee", USER_FIELDS);
   res.json(serialize(task));
 }

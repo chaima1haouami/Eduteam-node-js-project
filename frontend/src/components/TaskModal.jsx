@@ -1,16 +1,15 @@
 import { useState } from "react";
 
-const EMPTY = {
-  title: "",
-  description: "",
-  status: "todo",
-  priority: "medium",
-  dueDate: "",
-  assignee: "",
-};
-
 // Formulaire de création / modification d'une tâche (US09, US10, US12)
-export default function TaskModal({ task, members, isManager, saving, onClose, onSubmit }) {
+export default function TaskModal({
+  task,
+  members = [],
+  isManager,
+  saving,
+  defaultDueDate = "",
+  onClose,
+  onSubmit,
+}) {
   const [form, setForm] = useState(
     task
       ? {
@@ -21,13 +20,27 @@ export default function TaskModal({ task, members, isManager, saving, onClose, o
           dueDate: task.dueDate ? task.dueDate.slice(0, 10) : "",
           assignee: task.assignee?._id || "",
         }
-      : EMPTY
+      : {
+          title: "",
+          description: "",
+          status: "todo",
+          priority: "medium",
+          dueDate: defaultDueDate,
+          assignee: "",
+        }
   );
+
+  // Un non-chef qui modifie une tâche ne peut changer que le statut
+  const statusOnly = Boolean(task) && !isManager;
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   const submit = (e) => {
     e.preventDefault();
+    if (statusOnly) {
+      onSubmit({ status: form.status });
+      return;
+    }
     const body = {
       title: form.title,
       description: form.description,
@@ -39,7 +52,8 @@ export default function TaskModal({ task, members, isManager, saving, onClose, o
     onSubmit(body);
   };
 
-  const field = "w-full rounded border px-3 py-2";
+  const field =
+    "w-full rounded border px-3 py-2 disabled:bg-slate-100 disabled:text-slate-500";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -49,15 +63,15 @@ export default function TaskModal({ task, members, isManager, saving, onClose, o
         </h3>
 
         <input required maxLength={120} placeholder="Titre" className={field}
-          value={form.title} onChange={set("title")} />
+          value={form.title} onChange={set("title")} disabled={statusOnly} />
 
         <textarea rows={3} placeholder="Description (optionnelle)" className={field}
-          value={form.description} onChange={set("description")} />
+          value={form.description} onChange={set("description")} disabled={statusOnly} />
 
         <div className="grid grid-cols-2 gap-3">
           <label className="text-sm">
             Priorité
-            <select className={field} value={form.priority} onChange={set("priority")}>
+            <select className={field} value={form.priority} onChange={set("priority")} disabled={statusOnly}>
               <option value="low">Basse</option>
               <option value="medium">Moyenne</option>
               <option value="high">Haute</option>
@@ -65,7 +79,7 @@ export default function TaskModal({ task, members, isManager, saving, onClose, o
           </label>
           <label className="text-sm">
             Échéance
-            <input type="date" className={field} value={form.dueDate} onChange={set("dueDate")} />
+            <input type="date" className={field} value={form.dueDate} onChange={set("dueDate")} disabled={statusOnly} />
           </label>
           <label className="text-sm">
             Statut
@@ -80,9 +94,13 @@ export default function TaskModal({ task, members, isManager, saving, onClose, o
               Attribuée à
               <select className={field} value={form.assignee} onChange={set("assignee")}>
                 <option value="">Non attribuée</option>
-                {members.map((m) => (
-                  <option key={m._id} value={m._id}>{m.name}</option>
-                ))}
+                {members
+                  .filter((m) => m.user)
+                  .map((m) => (
+                    <option key={m.user._id} value={m.user._id}>
+                      {m.user.nom}
+                    </option>
+                  ))}
               </select>
             </label>
           )}

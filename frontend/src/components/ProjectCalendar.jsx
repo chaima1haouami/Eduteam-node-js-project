@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import api from "../services/api";
+import TaskModal from "./TaskModal";
 
 const DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
@@ -20,19 +21,34 @@ const STATUS_LABEL = {
 const pad = (n) => String(n).padStart(2, "0");
 const dayKey = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
 
-export default function ProjectCalendar({ projectId }) {
+export default function ProjectCalendar({
+  projectId,
+  members = [],
+  isManager = false,
+}) {
   const now = new Date();
   const todayKey = dayKey(now.getFullYear(), now.getMonth(), now.getDate());
+  const queryClient = useQueryClient();
 
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const [selected, setSelected] = useState(todayKey);
+  const [showModal, setShowModal] = useState(false);
 
   // Même clé que TaskBoard : le calendrier suit les changements du Kanban
   const { data, isLoading, error } = useQuery({
     queryKey: ["tasks", projectId],
     queryFn: async () =>
       (await api.get(`/projects/${projectId}/tasks`)).data,
+  });
+
+  // Création d'une tâche depuis le calendrier
+  const createTask = useMutation({
+    mutationFn: (body) => api.post(`/projects/${projectId}/tasks`, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+      setShowModal(false);
+    },
   });
 
   const tasks = Array.isArray(data) ? data : data?.tasks || [];
@@ -189,14 +205,23 @@ export default function ProjectCalendar({ projectId }) {
 
       {/* Détail du jour sélectionné */}
       <div className="mt-5 rounded-lg bg-slate-50 p-4">
-        <h3 className="mb-2 font-semibold text-slate-800">
-          {new Date(`${selected}T12:00:00`).toLocaleDateString("fr-FR", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
-        </h3>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-semibold text-slate-800">
+            {new Date(`${selected}T12:00:00`).toLocaleDateString("fr-FR", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </h3>
+
+          <button
+            onClick={() => setShowModal(true)}
+            className="rounded bg-indigo-900 px-3 py-1 text-sm text-white hover:bg-indigo-800"
+          >
+            + Ajouter une tâche ce jour
+          </button>
+        </div>
 
         {selectedTasks.length === 0 ? (
           <p className="text-sm text-slate-500">Aucune échéance ce jour-là.</p>
@@ -234,7 +259,27 @@ export default function ProjectCalendar({ projectId }) {
             {noDate} tâche{noDate > 1 ? "s" : ""} sans échéance (non affichée{noDate > 1 ? "s" : ""} ici).
           </p>
         )}
+
+        {createTask.isError && (
+          <p className="mt-3 text-sm text-red-600">
+            {createTask.error?.response?.data?.message ||
+              "Erreur lors de la création de la tâche."}
+          </p>
+        )}
       </div>
+
+      {/* Formulaire de création, échéance pré-remplie */}
+      {showModal && (
+        <TaskModal
+          task={null}
+          members={members}
+          isManager={isManager}
+          saving={createTask.isPending}
+          defaultDueDate={selected}
+          onClose={() => setShowModal(false)}
+          onSubmit={(body) => createTask.mutate(body)}
+        />
+      )}
     </section>
   );
 }
