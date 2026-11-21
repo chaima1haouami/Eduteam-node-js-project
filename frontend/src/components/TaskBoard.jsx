@@ -29,6 +29,11 @@ export default function TaskBoard({
     ? data
     : data?.tasks || [];
 
+  // Progression du projet (US22)
+  const total = tasks.length;
+  const doneCount = tasks.filter((task) => task.status === "done").length;
+  const percent = total === 0 ? 0 : Math.round((doneCount / total) * 100);
+
   // Création et modification
   const saveTask = useMutation({
     mutationFn: (body) => {
@@ -100,6 +105,28 @@ export default function TaskBoard({
         </button>
       </div>
 
+      {/* Barre de progression */}
+      <div className="mb-6">
+        <div className="mb-1 flex justify-between text-sm text-slate-600">
+          <span>Progression du projet</span>
+          <span>
+            {doneCount}/{total} terminée{doneCount > 1 ? "s" : ""} · {percent} %
+          </span>
+        </div>
+        <div
+          className="h-3 w-full overflow-hidden rounded-full bg-slate-200"
+          role="progressbar"
+          aria-valuenow={percent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className="h-full rounded-full bg-indigo-900 transition-all duration-500"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      </div>
+
       {/* Colonnes Kanban */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {columns.map((column) => (
@@ -133,7 +160,7 @@ export default function TaskBoard({
 
                   {task.assignee && (
                     <p className="text-xs text-slate-500">
-                      Attribuée à : {task.assignee.name}
+                      Attribuée à : {task.assignee.nom}
                     </p>
                   )}
 
