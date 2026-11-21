@@ -1,9 +1,8 @@
-
 import mongoose from "mongoose";
 
 const taskSchema = new mongoose.Schema(
   {
-    titre: {
+    title: {
       type: String,
       required: true,
       trim: true,
@@ -16,11 +15,27 @@ const taskSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",
       required: true,
+      index: true,
     },
-    statut: {
+    status: {
       type: String,
-      enum: ["à faire", "en cours", "terminée"],
-      default: "à faire",
+      enum: ["todo", "in_progress", "done"],
+      default: "todo",
+    },
+    priority: {
+      type: String,
+      default: "medium",
+    },
+    dueDate: {
+      type: Date,
+    },
+    assignee: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     },
   },
   { timestamps: true }

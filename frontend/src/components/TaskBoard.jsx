@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import {
   useQuery,
@@ -34,7 +33,10 @@ export default function TaskBoard({
   const saveTask = useMutation({
     mutationFn: (body) => {
       if (selectedTask) {
-        return api.put(`/tasks/${selectedTask._id}`, body);
+        return api.patch(
+          `/projects/${projectId}/tasks/${selectedTask._id}`,
+          body
+        );
       }
 
       return api.post(`/projects/${projectId}/tasks`, body);
@@ -52,7 +54,7 @@ export default function TaskBoard({
 
   // Suppression
   const deleteTask = useMutation({
-    mutationFn: (id) => api.delete(`/tasks/${id}`),
+    mutationFn: (id) => api.delete(`/projects/${projectId}/tasks/${id}`),
 
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -81,7 +83,6 @@ export default function TaskBoard({
 
   return (
     <section className="bg-white p-5 rounded-lg shadow">
-
       {/* En-tête */}
       <div className="flex justify-between items-center mb-5">
         <h2 className="text-xl font-bold text-indigo-900">
@@ -101,7 +102,6 @@ export default function TaskBoard({
 
       {/* Colonnes Kanban */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
         {columns.map((column) => (
           <div
             key={column.id}
@@ -109,10 +109,7 @@ export default function TaskBoard({
           >
             <h3 className="font-semibold text-slate-800 mb-4">
               {column.title} (
-              {tasks.filter(
-                (task) => task.status === column.id
-              ).length}
-              )
+              {tasks.filter((task) => task.status === column.id).length})
             </h3>
 
             {tasks
@@ -134,6 +131,12 @@ export default function TaskBoard({
                     Priorité : {task.priority}
                   </p>
 
+                  {task.assignee && (
+                    <p className="text-xs text-slate-500">
+                      Attribuée à : {task.assignee.name}
+                    </p>
+                  )}
+
                   {task.dueDate && (
                     <p className="text-xs text-slate-500">
                       Échéance :{" "}
@@ -142,7 +145,6 @@ export default function TaskBoard({
                   )}
 
                   <div className="flex gap-3 mt-4">
-
                     <button
                       onClick={() => {
                         setSelectedTask(task);
@@ -163,13 +165,11 @@ export default function TaskBoard({
                     >
                       Supprimer
                     </button>
-
                   </div>
                 </div>
               ))}
           </div>
         ))}
-
       </div>
 
       {/* Modal de création / modification */}
@@ -189,16 +189,17 @@ export default function TaskBoard({
 
       {saveTask.isError && (
         <p className="text-red-600 mt-3">
-          Erreur lors de l'enregistrement de la tâche.
+          {saveTask.error?.response?.data?.message ||
+            "Erreur lors de l'enregistrement de la tâche."}
         </p>
       )}
 
       {deleteTask.isError && (
         <p className="text-red-600 mt-3">
-          Erreur lors de la suppression.
+          {deleteTask.error?.response?.data?.message ||
+            "Erreur lors de la suppression."}
         </p>
       )}
-
     </section>
   );
 }

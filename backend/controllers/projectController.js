@@ -1,8 +1,17 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import mongoose from "mongoose";
 import Joi from "joi";
 import Project from "../models/Project.js";
 import ProjectMember from "../models/ProjectMember.js";
+import ProjectFile from "../models/ProjectFile.js";
 import User from "../models/User.js";
 import { Task } from "../models/Task.js";
+import { sendProjectInviteEmail } from "../services/mailer.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOAD_DIR = path.join(__dirname, "..", "uploads", "projects");
 
 const projectSchema = Joi.object({
   titre: Joi.string().min(3).required(),
@@ -36,6 +45,7 @@ export const getMyProjects = async (req, res) => {
     .map((m) => ({ ...m.project.toObject(), monRole: m.role }));
   res.json({ projects });
 };
+
 // US08 : consulter un projet avec ses membres
 export const getProject = async (req, res) => {
   const project = await Project.findById(req.params.projectId);
@@ -73,20 +83,27 @@ export const deleteProject = async (req, res) => {
   const { projectId } = req.params;
 
   const project = await Project.findById(projectId);
-
   if (!project) {
     return res.status(404).json({ message: "Projet introuvable" });
   }
 
+  // Supprimer les fichiers stockés sur le disque
+  const files = await ProjectFile.find({ project: projectId });
+  files.forEach((f) => {
+    fs.unlink(path.join(UPLOAD_DIR, f.storedName), () => {});
+  });
+
   await Promise.all([
     Task.deleteMany({ project: projectId }),
     ProjectMember.deleteMany({ project: projectId }),
+    ProjectFile.deleteMany({ project: projectId }),
   ]);
 
   await project.deleteOne();
 
   res.json({ message: "Projet supprimé avec succès" });
 };
+
 // US07 : inviter un membre par email (chef)
 export const addMember = async (req, res) => {
   const schema = Joi.object({
@@ -109,17 +126,38 @@ export const addMember = async (req, res) => {
     return res.status(409).json({ message: "Déjà membre de ce projet" });
   }
 
+  const role = value.role || (user.role === "encadrant" ? "encadrant" : "membre");
+
   const member = await ProjectMember.create({
     project: req.params.projectId,
     user: user._id,
-    role: value.role || (user.role === "encadrant" ? "encadrant" : "membre"),
+    role,
   });
+
+  // Email au nouveau membre : en arrière-plan, un échec n'annule pas l'ajout
+  try {
+    const [project, inviter] = await Promise.all([
+      Project.findById(req.params.projectId).select("titre"),
+      User.findById(req.user.id).select("nom"),
+    ]);
+    if (project) {
+      sendProjectInviteEmail({ user, project, inviter, role }).catch((err) =>
+        console.error("Email d'invitation non envoyé :", err.message)
+      );
+    }
+  } catch (err) {
+    console.error("Email d'invitation non envoyé :", err.message);
+  }
 
   res.status(201).json({ member });
 };
 
 // US18 : changer le rôle d'un membre (chef)
 export const updateMemberRole = async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.userId)) {
+    return res.status(400).json({ message: "Identifiant invalide" });
+  }
+
   const schema = Joi.object({
     role: Joi.string().valid("chef", "membre", "encadrant").required(),
   });
@@ -138,6 +176,9 @@ export const updateMemberRole = async (req, res) => {
 // Retirer un membre (chef)
 export const removeMember = async (req, res) => {
   const { projectId, userId } = req.params;
+  if (!mongoose.isValidObjectId(userId)) {
+    return res.status(400).json({ message: "Identifiant invalide" });
+  }
 
   const member = await ProjectMember.findOne({ project: projectId, user: userId });
   if (!member) return res.status(404).json({ message: "Membre introuvable" });

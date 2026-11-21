@@ -6,7 +6,7 @@ import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { protect } from "../middleware/auth.js";
 import ProjectFile from "../models/ProjectFile.js";
-import Membership from "../models/Membership.js"; // ADAPTE au nom réel de ton modèle de membres
+import ProjectMember from "../models/ProjectMember.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = path.join(__dirname, "..", "uploads", "projects");
@@ -27,9 +27,9 @@ router.use(protect);
 // Seuls les membres du projet passent
 router.use(async (req, res, next) => {
   try {
-    const membership = await Membership.findOne({
-      project: req.params.projectId, // ADAPTE si le champ s'appelle autrement
-      user: req.user.id,             // ADAPTE si le champ s'appelle autrement
+    const membership = await ProjectMember.findOne({
+      project: req.params.projectId,
+      user: req.user.id,
     });
     if (!membership) return res.status(403).json({ message: "Accès refusé à ce projet" });
     req.membership = membership;
