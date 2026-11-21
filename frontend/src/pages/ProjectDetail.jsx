@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../services/api";
 import TaskBoard from "../components/TaskBoard";
+import ProjectFiles from "./ProjectFiles";
 
 const roleLabel = { chef: "Chef de projet", membre: "Membre", encadrant: "Encadrant" };
 const AVATAR_COLORS = ["#FFD23F", "#7DD3FC", "#F9A8D4", "#86EFAC", "#C4B5FD"];
@@ -90,6 +91,7 @@ export default function ProjectDetail() {
   const { project, monRole, members } = data;
   const isChef = monRole === "chef";
   const actif = project.statut === "actif";
+  const myId = me?._id || me?.id;
 
   return (
     <div className="pd-root space-y-6">
@@ -193,7 +195,7 @@ export default function ProjectDetail() {
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-slate-900">
                     {m.user.nom}{" "}
-                    {m.user._id === me?.id && (
+                    {m.user._id === myId && (
                       <span className="text-xs font-medium text-[#5B3FE0]">(vous)</span>
                     )}
                   </p>
@@ -257,6 +259,8 @@ export default function ProjectDetail() {
       </section>
 
       <TaskBoard projectId={projectId} members={members} isManager={isChef} />
+
+      <ProjectFiles projectId={projectId} isManager={isChef} />
     </div>
   );
 }

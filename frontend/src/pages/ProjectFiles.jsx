@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSelector } from "react-redux";
 import api from "../services/api";
 
 const formatSize = (bytes = 0) =>
@@ -14,17 +15,19 @@ const extColor = (name = "") => {
   return "#FFD23F";
 };
 
-export default function ProjectFiles({ projectId }) {
+export default function ProjectFiles({ projectId, isManager = false }) {
+  const me = useSelector((state) => state.auth.user);
+  const myId = me?._id || me?.id;
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef(null);
-  const base = `/api/projects/${projectId}/files`;
+  const base = `/projects/${projectId}/files`;
 
   const loadFiles = async () => {
     try {
       const { data } = await api.get(base);
-      setFiles(data.files);
+      setFiles(data.files || data || []);
     } catch (err) {
       setError(err.response?.data?.message || "Erreur de chargement");
     }
@@ -53,12 +56,27 @@ export default function ProjectFiles({ projectId }) {
     }
   };
 
-  const handleDownload = async (fileId) => {
+  const handleDownload = async (file) => {
     try {
-      const { data } = await api.get(`${base}/${fileId}/download`);
-      window.open(data.url, "_blank");
+      const res = await api.get(`${base}/${file._id}/download`, { responseType: "blob" });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("Échec du téléchargement");
+    }
+  };
+
+  const handleDelete = async (file) => {
+    if (!window.confirm(`Supprimer « ${file.name} » ?`)) return;
+    try {
+      await api.delete(`${base}/${file._id}`);
+      await loadFiles();
     } catch (err) {
-      setError(err.response?.data?.message || "Échec du téléchargement");
+      setError(err.response?.data?.message || "Suppression impossible");
     }
   };
 
@@ -88,32 +106,45 @@ export default function ProjectFiles({ projectId }) {
         </p>
       ) : (
         <ul className="space-y-2">
-          {files.map((f) => (
-            <li
-              key={f._id}
-              className="flex items-center justify-between gap-4 rounded-xl bg-[#F7F6FF] p-3"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <span
-                  className="h-10 w-1.5 shrink-0 rounded-full"
-                  style={{ background: extColor(f.name) }}
-                />
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-[#1B1464]">{f.name}</p>
-                  <p className="text-xs text-slate-500">
-                    {formatSize(f.size)} · {f.uploadedBy?.name} ·{" "}
-                    {new Date(f.createdAt).toLocaleDateString("fr-FR")}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => handleDownload(f._id)}
-                className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-[#5B3FE0] hover:bg-[#5B3FE0]/10 focus-visible:outline-2 focus-visible:outline-[#5B3FE0]"
+          {files.map((f) => {
+            const canDelete = isManager || String(f.uploadedBy?._id || f.uploadedBy) === String(myId);
+            return (
+              <li
+                key={f._id}
+                className="flex items-center justify-between gap-4 rounded-xl bg-[#F7F6FF] p-3"
               >
-                Télécharger
-              </button>
-            </li>
-          ))}
+                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                    className="h-10 w-1.5 shrink-0 rounded-full"
+                    style={{ background: extColor(f.name) }}
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-[#1B1464]">{f.name}</p>
+                    <p className="text-xs text-slate-500">
+                      {formatSize(f.size)} · {f.uploadedBy?.nom} ·{" "}
+                      {new Date(f.createdAt).toLocaleDateString("fr-FR")}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <button
+                    onClick={() => handleDownload(f)}
+                    className="rounded-md px-3 py-1.5 text-sm font-medium text-[#5B3FE0] hover:bg-[#5B3FE0]/10"
+                  >
+                    Télécharger
+                  </button>
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDelete(f)}
+                      className="rounded-md px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
+                    >
+                      Supprimer
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
