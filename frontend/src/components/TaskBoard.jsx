@@ -16,6 +16,10 @@ export default function TaskBoard({
   const [showModal, setShowModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
 
+  // Glisser-déposer (US14)
+  const [draggedId, setDraggedId] = useState(null);
+  const [overColumn, setOverColumn] = useState(null);
+
   const queryClient = useQueryClient();
 
   // Récupération des tâches
@@ -34,6 +38,9 @@ export default function TaskBoard({
   const doneCount = tasks.filter((task) => task.status === "done").length;
   const percent = total === 0 ? 0 : Math.round((doneCount / total) * 100);
 
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+
   // Création et modification
   const saveTask = useMutation({
     mutationFn: (body) => {
@@ -48,24 +55,23 @@ export default function TaskBoard({
     },
 
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["tasks", projectId],
-      });
-
+      refresh();
       setShowModal(false);
       setSelectedTask(null);
     },
   });
 
+  // Changement de statut par glisser-déposer
+  const moveTask = useMutation({
+    mutationFn: ({ id, status }) =>
+      api.patch(`/projects/${projectId}/tasks/${id}`, { status }),
+    onSuccess: refresh,
+  });
+
   // Suppression
   const deleteTask = useMutation({
     mutationFn: (id) => api.delete(`/projects/${projectId}/tasks/${id}`),
-
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["tasks", projectId],
-      });
-    },
+    onSuccess: refresh,
   });
 
   const columns = [
@@ -73,6 +79,19 @@ export default function TaskBoard({
     { id: "in_progress", title: "En cours" },
     { id: "done", title: "Terminées" },
   ];
+
+  const handleDrop = (e, columnId) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData("text/plain") || draggedId;
+    const task = tasks.find((t) => t._id === id);
+
+    setDraggedId(null);
+    setOverColumn(null);
+
+    if (task && task.status !== columnId) {
+      moveTask.mutate({ id: task._id, status: columnId });
+    }
+  };
 
   if (isLoading) {
     return <p>Chargement des tâches...</p>;
@@ -132,7 +151,21 @@ export default function TaskBoard({
         {columns.map((column) => (
           <div
             key={column.id}
-            className="bg-slate-100 rounded-lg p-4 min-h-48"
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (overColumn !== column.id) setOverColumn(column.id);
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget)) {
+                setOverColumn(null);
+              }
+            }}
+            onDrop={(e) => handleDrop(e, column.id)}
+            className={`rounded-lg p-4 min-h-48 transition-colors ${
+              overColumn === column.id
+                ? "bg-indigo-100 ring-2 ring-indigo-400"
+                : "bg-slate-100"
+            }`}
           >
             <h3 className="font-semibold text-slate-800 mb-4">
               {column.title} (
@@ -144,7 +177,19 @@ export default function TaskBoard({
               .map((task) => (
                 <div
                   key={task._id}
-                  className="bg-white rounded-lg p-4 shadow-sm mb-3"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/plain", task._id);
+                    e.dataTransfer.effectAllowed = "move";
+                    setDraggedId(task._id);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedId(null);
+                    setOverColumn(null);
+                  }}
+                  className={`bg-white rounded-lg p-4 shadow-sm mb-3 cursor-grab active:cursor-grabbing ${
+                    draggedId === task._id ? "opacity-40" : ""
+                  }`}
                 >
                   <h4 className="font-semibold text-indigo-900">
                     {task.title}
@@ -218,6 +263,13 @@ export default function TaskBoard({
         <p className="text-red-600 mt-3">
           {saveTask.error?.response?.data?.message ||
             "Erreur lors de l'enregistrement de la tâche."}
+        </p>
+      )}
+
+      {moveTask.isError && (
+        <p className="text-red-600 mt-3">
+          {moveTask.error?.response?.data?.message ||
+            "Impossible de déplacer la tâche."}
         </p>
       )}
 
