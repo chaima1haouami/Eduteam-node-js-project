@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../services/api";
 import TaskBoard from "../components/TaskBoard";
+import ProjectCalendar from "../components/ProjectCalendar";
 import ProjectFiles from "./ProjectFiles";
 
 const roleLabel = { chef: "Chef de projet", membre: "Membre", encadrant: "Encadrant" };
@@ -259,6 +260,8 @@ export default function ProjectDetail() {
       </section>
 
       <TaskBoard projectId={projectId} members={members} isManager={isChef} />
+
+      <ProjectCalendar projectId={projectId} />
 
       <ProjectFiles projectId={projectId} isManager={isChef} />
     </div>
