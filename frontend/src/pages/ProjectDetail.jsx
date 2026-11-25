@@ -6,6 +6,9 @@ import api from "../services/api";
 import TaskBoard from "../components/TaskBoard";
 import ProjectCalendar from "../components/ProjectCalendar";
 import ProjectFiles from "./ProjectFiles";
+import ProjectChat from "../components/ProjectChat";
+import SupervisorComments from "../components/SupervisorComments";
+import AiAssistant from "../components/AiAssistant";
 
 const roleLabel = { chef: "Chef de projet", membre: "Membre", encadrant: "Encadrant" };
 const AVATAR_COLORS = ["#FFD23F", "#7DD3FC", "#F9A8D4", "#86EFAC", "#C4B5FD"];
@@ -259,11 +262,21 @@ export default function ProjectDetail() {
         )}
       </section>
 
+      <ProjectChat projectId={projectId} />
+
       <TaskBoard projectId={projectId} members={members} isManager={isChef} />
 
       <ProjectCalendar projectId={projectId} members={members} isManager={isChef} />
 
       <ProjectFiles projectId={projectId} isManager={isChef} />
+
+      <SupervisorComments
+        projectId={projectId}
+        canComment={monRole === "encadrant" || me?.role === "admin"}
+        myId={myId}
+      />
+
+      <AiAssistant projectId={projectId} />
     </div>
   );
 }

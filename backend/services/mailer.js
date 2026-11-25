@@ -18,6 +18,9 @@ function getTransporter() {
             port: Number(SMTP_PORT) || 587,
             secure: SMTP_PORT === "465",
             auth: { user: SMTP_USER, pass: SMTP_PASS },
+            // Développement local uniquement : SMTP_ALLOW_SELF_SIGNED=true accepte
+            // le certificat d'un antivirus / proxy qui intercepte les connexions SMTP
+            tls: { rejectUnauthorized: process.env.SMTP_ALLOW_SELF_SIGNED !== "true" },
           }),
         };
       }
@@ -170,5 +173,23 @@ export async function sendTaskAssignedEmail({ user, project, task, assigner }) {
         <a href="${link}" style="background:#1B1464;color:#fff;padding:12px 20px;border-radius:12px;text-decoration:none;font-weight:bold">Ouvrir le projet</a>
       </p>
       <p style="color:#94a3b8;font-size:12px">Ce message est automatique, merci de ne pas y répondre.</p>`),
+  });
+}
+
+export async function sendNewMessageEmail({ user, project, sender }) {
+  const link = `${process.env.CLIENT_URL || "http://localhost:5173"}/projects/${project._id}`;
+
+  await deliver({
+    to: user.email,
+    subject: "Vous avez un nouveau message",
+    text: `Bonjour ,\n\nVous avez un nouveau message de ${sender.nom} dans le projet « ${project.titre} ».\n\nOuvrir la discussion : ${link}\n\nL'équipe Eduteam`,
+    html: box(`
+      <h2 style="margin:0 0 12px">Bonjour,</h2>
+      <p>Vous avez un <strong>nouveau message</strong> de
+        <strong>${escapeHtml(sender.nom)}</strong> dans le projet
+        <strong>${escapeHtml(project.titre)}</strong>.</p>
+      <p style="margin:24px 0">
+        <a href="${link}" style="background:#1B1464;color:#fff;padding:12px 20px;border-radius:12px;text-decoration:none;font-weight:bold">Ouvrir la discussion</a>
+      </p>`),
   });
 }
